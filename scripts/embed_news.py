@@ -132,7 +132,7 @@ class NewsEmbeddingProcessor:
             # 准备更新数据
             update_data = {
                 'embedding_status': status,
-                'embedding_model': 'text-embedding-004'
+                'embedding_model': 'gemini-embedding-001'
             }
             
             # 如果是完成状态，添加时间戳

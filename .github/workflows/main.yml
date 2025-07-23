@@ -1,0 +1,111 @@
+name: Embed News to Pinecone
+
+on:
+  # 定时触发 - 每小时运行一次
+  schedule:
+    - cron: '0 * * * *'  # 每小时的第0分钟
+  
+  # 手动触发
+  workflow_dispatch:
+    inputs:
+      max_items:
+        description: '最多处理的新闻数量'
+        required: false
+        default: '1000'
+        type: string
+
+jobs:
+  embed-news:
+    runs-on: ubuntu-latest
+    
+    # 超时设置
+    timeout-minutes: 30
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+        cache: 'pip'
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+    
+    - name: Create config directory
+      run: mkdir -p vector
+    
+    - name: Setup embedding config
+      run: |
+        cat > vector/embedding_config.json << EOF
+        {
+          "pinecone": {
+            "api_key": "${{ secrets.PINECONE_API_KEY }}",
+            "index_name": "${{ secrets.PINECONE_INDEX_NAME }}",
+            "dimension": 768
+          },
+          "gemini": {
+            "api_key": "${{ secrets.GEMINI_API_KEY }}",
+            "model_name": "models/embedding-001",
+            "batch_size": 100
+          },
+          "supabase": {
+            "url": "${{ secrets.SUPABASE_URL }}",
+            "anon_key": "${{ secrets.SUPABASE_ANON_KEY }}",
+            "table_name": "news_items"
+          },
+          "embedding_settings": {
+            "text_preparation": {
+              "enable_text_splitting": true,
+              "chunk_size": 1000,
+              "chunk_overlap": 200,
+              "max_content_length": 2000
+            },
+            "batch_processing": {
+              "batch_size": 50,
+              "retry_attempts": 3,
+              "retry_delay": 5
+            },
+            "status_management": {
+              "pending": "pending",
+              "processing": "processing",
+              "completed": "completed",
+              "failed": "failed"
+            }
+          }
+        }
+        EOF
+    
+    - name: Run embedding script
+      env:
+        PYTHONPATH: .
+      run: |
+        echo "开始处理新闻embedding..."
+        python scripts/embed_news.py
+    
+    - name: Upload logs
+      if: always()
+      uses: actions/upload-artifact@v3
+      with:
+        name: embedding-logs
+        path: |
+          *.log
+        retention-days: 7
+    
+    # 发送通知（可选）
+    - name: Send notification on failure
+      if: failure()
+      run: |
+        echo "Embedding处理失败！请检查日志。"
+        # 这里可以添加发送邮件或其他通知的步骤
+
+# GitHub Secrets需要配置的环境变量：
+# - PINECONE_API_KEY: Pinecone API密钥
+# - PINECONE_INDEX_NAME: Pinecone索引名称（如：fomo-news）
+# - GEMINI_API_KEY: Google Gemini API密钥
+# - SUPABASE_URL: Supabase项目URL
+# - SUPABASE_ANON_KEY: Supabase匿名密钥

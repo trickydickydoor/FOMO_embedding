@@ -9,9 +9,9 @@ on:
   workflow_dispatch:
     inputs:
       max_items:
-        description: '最多处理的新闻数量'
+        description: '最多处理的新闻数量（留空表示无限制）'
         required: false
-        default: '1000'
+        default: ''
         type: string
 
 jobs:
@@ -26,7 +26,7 @@ jobs:
       uses: actions/checkout@v4
     
     - name: Set up Python
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5
       with:
         python-version: '3.9'
         cache: 'pip'
@@ -85,11 +85,17 @@ jobs:
         PYTHONPATH: .
       run: |
         echo "开始处理新闻embedding..."
-        python scripts/embed_news.py
+        if [ -n "${{ github.event.inputs.max_items }}" ]; then
+          echo "设置最大处理数量: ${{ github.event.inputs.max_items }}"
+          python scripts/embed_news.py --max-items ${{ github.event.inputs.max_items }}
+        else
+          echo "无处理数量限制"
+          python scripts/embed_news.py
+        fi
     
     - name: Upload logs
       if: always()
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: embedding-logs
         path: |

@@ -50,7 +50,7 @@ class NewsEmbeddingProcessor:
         
         # 批处理设置
         self.batch_size = 50
-        self.max_items_per_run = 1000  # 每次运行最多处理的条目数
+        self.max_items_per_run = None  # 无限制，处理所有pending的新闻
         
         self._initialize_components()
     
@@ -106,8 +106,9 @@ class NewsEmbeddingProcessor:
             # 限制数量
             if limit:
                 query = query.limit(limit)
-            else:
+            elif self.max_items_per_run:
                 query = query.limit(self.max_items_per_run)
+            # 如果 max_items_per_run 为 None，不设置限制
             
             response = query.execute()
             
@@ -288,7 +289,21 @@ class NewsEmbeddingProcessor:
 def main():
     """主函数"""
     try:
+        # 从命令行参数获取限制（如果有的话）
+        import argparse
+        parser = argparse.ArgumentParser(description='新闻Embedding处理脚本')
+        parser.add_argument('--max-items', type=int, help='最多处理的新闻数量')
+        args = parser.parse_args()
+        
         processor = NewsEmbeddingProcessor()
+        
+        # 如果命令行指定了限制，则使用命令行参数
+        if args.max_items:
+            processor.max_items_per_run = args.max_items
+            logger.info(f"设置最大处理数量: {args.max_items}")
+        else:
+            logger.info("无处理数量限制，将处理所有pending的新闻")
+        
         processor.run()
     except Exception as e:
         logger.error(f"程序异常退出: {e}")
